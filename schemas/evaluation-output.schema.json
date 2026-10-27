@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bedrock evaluation output",
+  "type": "object",
+  "required": ["category", "urgency", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": ["billing", "technical", "account", "other"]
+    },
+    "urgency": {
+      "type": "string",
+      "enum": ["normal", "high"]
+    },
+    "summary": {
+      "type": "string",
+      "pattern": "^\\s*\\S+(?:\\s+\\S+){0,39}\\s*$"
+    }
+  }
+}
