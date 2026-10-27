@@ -5,5 +5,5 @@ include "root" {
 
 # Point this deployment unit to the project's Terraform module.
 terraform {
-  source = "../../terraform"
+  source = "../../modules"
 }
