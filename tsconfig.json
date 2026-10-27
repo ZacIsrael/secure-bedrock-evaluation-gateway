@@ -1,0 +1,39 @@
+{
+    "compilerOptions": {
+      // Compile application source into dist.
+      "rootDir": "./src",
+      "outDir": "./dist",
+  
+      // Use Node.js-compatible ES module behavior.
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+  
+      // Use a fixed JavaScript target supported by Node.js 22.
+      "target": "ES2023",
+      "lib": ["ES2023"],
+      "types": ["node"],
+  
+      // Preserve source mappings for debugging.
+      "sourceMap": true,
+  
+      // Do not generate JavaScript when compilation has errors.
+      "noEmitOnError": true,
+  
+      // Strict type checking.
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "exactOptionalPropertyTypes": true,
+  
+      // Keep module handling explicit and predictable.
+      "verbatimModuleSyntax": true,
+      "isolatedModules": true,
+      "noUncheckedSideEffectImports": true,
+      "moduleDetection": "force",
+      "forceConsistentCasingInFileNames": true,
+  
+      // Skip checking dependency declaration-file internals.
+      "skipLibCheck": true
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["node_modules", "dist"]
+  }

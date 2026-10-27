@@ -1,0 +1,27 @@
+{
+  "name": "secure-bedrock-evaluation-gateway",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A project to build a secure Amazon Bedrock evaluation gateway using Terraform and Terragrunt, with workload identity, encryption, and model evaluation workflows.",
+  "type": "module",
+  "engines": {
+    "node": "22.23.1",
+    "npm": "10.9.8"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZacIsrael/secure-bedrock-evaluation-gateway.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "typescript": "7.0.2"
+  }
+}
