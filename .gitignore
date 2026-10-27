@@ -1,0 +1,173 @@
+# ============================================
+# Terraform
+# ============================================
+
+# Local Terraform working directories at any depth
+.terraform/
+
+# Terraform state files and backups
+# State can contain sensitive values.
+*.tfstate
+*.tfstate.*
+
+# Temporary state-lock information
+# This is different from .terraform.lock.hcl.
+.terraform.tfstate.lock.info
+
+# Terraform crash logs
+crash.log
+crash.*.log
+
+# Variable files may contain secrets or local configuration.
+# Commit sanitized templates using a .example suffix:
+# terraform.tfvars.example or terraform.tfvars.json.example
+*.tfvars
+*.tfvars.json
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform temporary files
+.terraform.tmp
+
+# Saved Terraform plans and exported plan JSON
+# Use these naming conventions for generated plan artifacts.
+*.tfplan
+*.tfplan.*
+tfplan
+tfplan.json
+
+# Local Terraform CLI configuration
+.terraformrc
+terraform.rc
+
+# IMPORTANT:
+# Commit .terraform.lock.hcl for reproducible provider selections.
+# Do not add it to this ignore file.
+
+
+# ============================================
+# Terragrunt
+# ============================================
+
+# Downloaded modules and generated working files
+.terragrunt-cache/
+
+# Debug-generated variable files
+.terragrunt-debug.tfvars.json
+
+# Stable local-state directory, if used by this project
+/live/.state/
+
+
+# ============================================
+# Terragrunt-Generated Terraform Files
+# ============================================
+
+# Do not broadly ignore provider.tf or backend.tf:
+# those filenames may also contain handwritten source code.
+#
+# Files generated inside .terragrunt-cache/ are already ignored.
+#
+# If Terragrunt generates files outside its cache, add exact
+# paths here after confirming the generate block's output path.
+# Examples:
+# /live/dev/provider.tf
+# /live/dev/backend.tf
+
+
+# ============================================
+# Node.js / TypeScript
+# ============================================
+
+# Installed dependencies
+node_modules/
+
+# Compiled application output
+dist/
+build/
+
+# Test coverage
+coverage/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
+
+# Package-manager debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Commit the lockfile for the package manager this project uses:
+# package-lock.json, pnpm-lock.yaml, or yarn.lock.
+
+
+# ============================================
+# Environment Variables / Secrets
+# ============================================
+
+# Local environment files
+.env
+.env.*
+
+# Allow sanitized environment templates
+!.env.example
+!.env.*.example
+
+# Private keys and PEM files, which may contain private keys
+*.key
+*.pem
+
+# Certificate bundles that may contain private keys
+*.p12
+*.pfx
+
+# Do not place real credentials in committed example files.
+
+
+# ============================================
+# IDE / Editor
+# ============================================
+
+# Local editor configuration
+.vscode/
+.idea/
+
+# Vim swap files
+*.swp
+*.swo
+
+
+# ============================================
+# Operating System
+# ============================================
+
+# macOS metadata
+.DS_Store
+._*
+
+# Windows metadata
+Thumbs.db
+Desktop.ini
+
+
+# ============================================
+# Generated Artifacts
+# ============================================
+
+# Generated deployment archives
+*.zip
+
+
+# ============================================
+# Verification Evidence
+# ============================================
+
+# Raw evidence may contain prompts, model responses,
+# account IDs, ARNs, or deployment-specific metadata.
+# Commit sanitized evidence outside this directory.
+/docs/verification/raw/
