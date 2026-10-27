@@ -1,6 +1,21 @@
 # Inputs: Region, project/environment, operator principal ARN, 
 # model ID, artifact prefix, retention, and tags.
 
+# Select the AWS Region for this development deployment.
+# Bedrock model invocation for this project uses us-east-1.
+variable "region" {
+  description = "AWS Region for regional project resources and Bedrock invocation."
+  type        = string
+  default     = "us-east-1"
+}
+
+# Identify the existing operator allowed to assume the gateway IAM role.
+# Pass the specific IAM role or user ARN used by the authenticated operator.
+variable "operator_principal_arn" {
+  description = "ARN of the existing IAM principal trusted to assume the gateway role."
+  type        = string
+}
+
 # Identify the deployment environment used in resource names and tags.
 # Pass a value such as "dev" from the Terragrunt development unit.
 variable "environment" {
