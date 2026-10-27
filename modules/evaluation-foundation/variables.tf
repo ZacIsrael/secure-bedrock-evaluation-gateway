@@ -38,3 +38,19 @@ variable "s3_retention_days" {
   type        = number
   default     = 7
 }
+
+# Pin the Bedrock foundation model used for ticket evaluation.
+# Keep this ID consistent with the model allowed by the gateway IAM policy.
+variable "model_id" {
+  description = "Bedrock foundation model ID used for ticket evaluation."
+  type        = string
+  default     = "amazon.nova-micro-v1:0"
+}
+
+# Set the S3 key prefix where the gateway writes evaluation artifacts.
+# Use the same prefix when restricting the gateway's S3 permissions.
+variable "artifact_prefix" {
+  description = "S3 object key prefix for evaluation artifacts."
+  type        = string
+  default     = "artifacts/"
+}
