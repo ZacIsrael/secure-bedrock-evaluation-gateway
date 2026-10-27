@@ -33,6 +33,24 @@ The following application dependencies were verified locally on October 27, 2026
 
 The AWS SDK packages are runtime dependencies. TypeScript and Node.js type definitions are development dependencies.
 
+## Container Image Pins
+
+Container image references are recorded in `images.lock.env`.
+
+| Component | Release / tag | Verified platform |
+| --- | --- | --- |
+| SPIRE server | `1.15.5` | `linux/arm64` |
+| SPIRE agent | `1.15.5` | `linux/arm64` |
+| Node.js | `22.23.1-bookworm-slim` | `linux/arm64` |
+
+All three images were pulled successfully and their binaries reported the
+expected versions on October 27, 2026. Registry digests were captured using
+`docker image inspect`.
+
+Compose and Docker build configuration will consume these pins during
+container setup. SPIRE service configuration, identity registration, and
+authentication verification remain separate implementation tasks.
+
 ## Version Pinning
 
 - `.terraform-version` records Terraform `1.16.2`.
@@ -44,6 +62,7 @@ The AWS SDK packages are runtime dependencies. TypeScript and Node.js type defin
 - `package.json` declares exact application dependency versions and requires Node.js `22.23.1` and npm `10.9.8`.
 - `package-lock.json` records the resolved npm dependency tree.
 - `.npmrc` enables exact dependency versions and strict engine checks.
+- `images.lock.env` records exact SPIRE and Node.js container image references, including registry digests and the verified execution platform.
 
 The tool-version files support compatible version managers; they do not independently install or switch tool versions.
 
@@ -55,4 +74,4 @@ The tool-version files support compatible version managers; they do not independ
 - Bedrock Runtime and S3 SDK imports loaded successfully without making AWS requests.
 - TypeScript type checking and compilation remain pending until application source files are added.
 - AWS provider support for the complete resource configuration remains to be validated.
-- SPIRE releases and container image pins remain pending.
+- SPIRE server, SPIRE agent, and Node.js container versions verified on Linux ARM64; image digests recorded in `images.lock.env`.
