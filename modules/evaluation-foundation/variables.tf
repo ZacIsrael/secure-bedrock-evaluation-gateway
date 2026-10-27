@@ -39,6 +39,14 @@ variable "s3_retention_days" {
   default     = 7
 }
 
+# Set how long CloudWatch retains evaluation gateway log events.
+# Keep the default at seven days for the development deployment.
+variable "log_retention_days" {
+  description = "Number of days to retain evaluation gateway logs in CloudWatch."
+  type        = number
+  default     = 7
+}
+
 # Pin the Bedrock foundation model used for ticket evaluation.
 # Keep this ID consistent with the model allowed by the gateway IAM policy.
 variable "model_id" {
