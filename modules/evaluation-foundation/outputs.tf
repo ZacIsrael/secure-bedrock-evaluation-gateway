@@ -28,3 +28,17 @@ output "region" {
   description = "AWS Region for regional project resources and Bedrock invocation."
   value       = var.region
 }
+
+# Expose the gateway role ARN to the application configuration.
+# The authenticated operator assumes this role for runtime permissions.
+output "gateway_role_arn" {
+  description = "ARN of the IAM role assumed by the evaluation gateway operator."
+  value       = aws_iam_role.gateway.arn
+}
+
+# Expose the CloudWatch log group name used by the gateway.
+# The application uses it when sending events to its log stream.
+output "log_group_name" {
+  description = "Name of the evaluation gateway CloudWatch log group."
+  value       = aws_cloudwatch_log_group.gateway.name
+}
