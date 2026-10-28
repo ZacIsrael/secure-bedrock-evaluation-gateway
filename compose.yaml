@@ -1,0 +1,28 @@
+services:
+  # Run the SPIRE server using the exact image pinned for this project.
+  # The server issues identities and stores workload registrations.
+  spire-server:
+    image: ${SPIRE_SERVER_IMAGE:?Set SPIRE_SERVER_IMAGE in images.lock.env}
+    platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
+
+    # Load the server configuration from the path inside the container.
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+
+    volumes:
+      # Mount the reviewed configuration without allowing container writes.
+      - ./spire/server/server.conf:/opt/spire/conf/server/server.conf:ro
+
+      # Preserve the server database and signing keys across restarts.
+      - spire-server-data:/var/lib/spire/server
+
+    # Check whether SPIRE is ready to serve requests.
+    # The release image has no shell, so call the binary directly.
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  # Keep SPIRE server state in a Docker-managed volume.
+  spire-server-data:
