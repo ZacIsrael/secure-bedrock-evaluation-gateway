@@ -97,6 +97,7 @@ services:
         condition: service_started
     volumes:
       - spire-agent-socket:/run/spire/agent/public
+      - ./eval/cases/development.jsonl:/app/eval/cases/development.jsonl:ro
 
 volumes:
   # Keep SPIRE server state in a Docker-managed volume.
