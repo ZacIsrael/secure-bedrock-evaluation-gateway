@@ -171,3 +171,6 @@ Desktop.ini
 # account IDs, ARNs, or deployment-specific metadata.
 # Commit sanitized evidence outside this directory.
 /docs/verification/raw/
+
+
+spire/agent/bootstrap.pem
