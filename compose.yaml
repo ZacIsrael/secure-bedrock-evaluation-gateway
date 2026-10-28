@@ -27,6 +27,8 @@ services:
   spire-agent:
     image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
+    # Let the agent identify processes in the workload containers.
+    pid: "host"
     depends_on:
       spire-server:
         condition: service_healthy
@@ -63,6 +65,45 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Fetch the identity issued to the client container.
+  client:
+    image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
+    platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
+    entrypoint: ["/opt/spire/bin/spire-agent"]
+    command:
+      - api
+      - fetch
+      - x509
+      - -socketPath
+      - /run/spire/agent/public/api.sock
+      - -write
+      - /tmp
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    volumes:
+      - spire-agent-socket:/run/spire/agent/public
+
+  # Fetch the separate identity issued to the gateway container.
+  gateway:
+    image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
+    platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
+    entrypoint: ["/opt/spire/bin/spire-agent"]
+    command:
+      - api
+      - fetch
+      - x509
+      - -socketPath
+      - /run/spire/agent/public/api.sock
+      - -write
+      - /tmp
+    depends_on:
+      spire-agent:
+        condition: service_healthy
+    volumes:
+      - spire-agent-socket:/run/spire/agent/public
+
 volumes:
   # Keep SPIRE server state in a Docker-managed volume.
   spire-server-data:
