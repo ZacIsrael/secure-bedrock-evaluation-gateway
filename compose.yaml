@@ -76,11 +76,24 @@ services:
     command: ["node", "dist/gateway.js"]
     environment:
       SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
+      AWS_REGION: us-east-1
+      AWS_PROFILE: default
+      AWS_SHARED_CREDENTIALS_FILE: /run/aws/credentials
+      GATEWAY_ROLE_ARN: ${GATEWAY_ROLE_ARN:?Export GATEWAY_ROLE_ARN before starting Compose}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:?Export BEDROCK_MODEL_ID before starting Compose}
     depends_on:
       spire-agent:
         condition: service_healthy
+    # A 401 means the server is listening and correctly requires a JWT.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/authorize',{method:'POST'}).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s    
     volumes:
       - spire-agent-socket:/run/spire/agent/public
+      - ${HOME}/.aws/credentials:/run/aws/credentials:ro
 
   # Request a gateway-scoped JWT-SVID and call the authorization endpoint.
   client:
@@ -94,7 +107,7 @@ services:
       SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
     depends_on:
       gateway:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - spire-agent-socket:/run/spire/agent/public
       - ./eval/cases/development.jsonl:/app/eval/cases/development.jsonl:ro

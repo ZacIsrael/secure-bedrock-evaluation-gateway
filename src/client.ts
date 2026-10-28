@@ -52,6 +52,7 @@ const response = await fetch("http://gateway:8080/tickets", {
 
 console.log(`${ownId}: HTTP ${response.status} ${await response.text()}`);
 
-if (response.status !== 202) {
+// A completed, schema-valid classification returns HTTP 200.
+if (response.status !== 200) {
   process.exitCode = 1;
 }

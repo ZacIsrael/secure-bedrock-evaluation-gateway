@@ -1,0 +1,20 @@
+{
+  "date": "2026-10-28",
+  "caseId": "dev-001",
+  "clientSpiffeId": "spiffe://secure-bedrock-evaluation-gateway.local/client",
+  "httpStatus": 200,
+  "promptId": "support-ticket-classification-v2",
+  "modelId": "amazon.nova-micro-v1:0",
+  "region": "us-east-1",
+  "output": {
+    "category": "billing",
+    "urgency": "normal",
+    "summary": "Customer was charged twice for subscription this month; request to remove duplicate charge."
+  },
+  "latencyMs": 350,
+  "usage": {
+    "inputTokens": 286,
+    "outputTokens": 38,
+    "totalTokens": 324
+  }
+}
