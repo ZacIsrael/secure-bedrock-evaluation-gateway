@@ -23,6 +23,52 @@ services:
       timeout: 5s
       retries: 5
 
+  # Run the pinned SPIRE agent after the server is healthy.
+  spire-agent:
+    image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
+    platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
+    depends_on:
+      spire-server:
+        condition: service_healthy
+
+    # Read the one-time join token from a local, untracked file.
+    command:
+      - -config
+      - /opt/spire/conf/agent/agent.conf
+      - -joinTokenFile
+      - /run/spire/agent/join-token
+
+    volumes:
+      # Supply the agent configuration and server trust bundle.
+      - ./spire/agent/agent.conf:/opt/spire/conf/agent/agent.conf:ro
+      - ./spire/agent/bootstrap.pem:/opt/spire/conf/agent/bootstrap.pem:ro
+      - ./spire/agent/join-token:/run/spire/agent/join-token:ro
+
+      # Preserve agent state and share its Workload API socket later.
+      - spire-agent-data:/var/lib/spire/agent
+      - spire-agent-socket:/run/spire/agent/public
+
+      # Let the agent identify Docker workloads.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/opt/spire/bin/spire-agent",
+          "healthcheck",
+          "-socketPath",
+          "/run/spire/agent/public/api.sock",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 volumes:
   # Keep SPIRE server state in a Docker-managed volume.
   spire-server-data:
+
+  # Keep the agent's keys and other state across restarts.
+  spire-agent-data:
+
+  # Share the agent's Workload API socket with future workloads.
+  spire-agent-socket:
