@@ -66,41 +66,35 @@ services:
       timeout: 5s
       retries: 5
 
-  # Fetch the identity issued to the client container.
-  client:
-    image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
+  # Validate incoming SPIRE identities and authorize only the client.
+  gateway:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:?Set NODE_IMAGE in images.lock.env}
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
-    entrypoint: ["/opt/spire/bin/spire-agent"]
-    command:
-      - api
-      - fetch
-      - x509
-      - -socketPath
-      - /run/spire/agent/public/api.sock
-      - -write
-      - /tmp
+    command: ["node", "dist/gateway.js"]
+    environment:
+      SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
     depends_on:
       spire-agent:
         condition: service_healthy
     volumes:
       - spire-agent-socket:/run/spire/agent/public
 
-  # Fetch the separate identity issued to the gateway container.
-  gateway:
-    image: ${SPIRE_AGENT_IMAGE:?Set SPIRE_AGENT_IMAGE in images.lock.env}
+  # Request a gateway-scoped JWT-SVID and call the authorization endpoint.
+  client:
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:?Set NODE_IMAGE in images.lock.env}
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
-    entrypoint: ["/opt/spire/bin/spire-agent"]
-    command:
-      - api
-      - fetch
-      - x509
-      - -socketPath
-      - /run/spire/agent/public/api.sock
-      - -write
-      - /tmp
+    command: ["node", "dist/client.js"]
+    environment:
+      SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
     depends_on:
-      spire-agent:
-        condition: service_healthy
+      gateway:
+        condition: service_started
     volumes:
       - spire-agent-socket:/run/spire/agent/public
 
