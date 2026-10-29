@@ -75,14 +75,22 @@ services:
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
     command: ["node", "dist/gateway.js"]
     environment:
+      # Connect the gateway to SPIRE's Workload API socket for identity checks.
       SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
+      # Use the same AWS Region as the deployed resources and Bedrock model.
       AWS_REGION: us-east-1
+      # Select the profile used to assume the gateway's IAM role.
       AWS_PROFILE: default
+      # Read the mounted AWS credentials from this container path.
       AWS_SHARED_CREDENTIALS_FILE: /run/aws/credentials
+      # Assume the deployed role for Bedrock, S3, and CloudWatch permissions.
       GATEWAY_ROLE_ARN: ${GATEWAY_ROLE_ARN:?Export GATEWAY_ROLE_ARN before starting Compose}
+      # Identify the Bedrock model the gateway is allowed to invoke.
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:?Export BEDROCK_MODEL_ID before starting Compose}
       # Use v2 by default; allow an explicit v1 run for comparison.
       PROMPT_ID: ${PROMPT_ID:-support-ticket-classification-v2}
+      # Name the deployed bucket where the gateway will save evaluation evidence.
+      EVIDENCE_BUCKET_NAME: ${EVIDENCE_BUCKET_NAME:?Export EVIDENCE_BUCKET_NAME before starting Compose}
     depends_on:
       spire-agent:
         condition: service_healthy

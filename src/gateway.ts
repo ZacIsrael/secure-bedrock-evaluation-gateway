@@ -18,6 +18,11 @@ import {
 
 // Read the frozen prompt text when the gateway starts.
 import { readFile } from "node:fs/promises";
+// Use the S3 SDK to write validated evaluation results to the evidence bucket.
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
+// Generate a unique object key for each saved classification.
+import { randomUUID } from "node:crypto";
 
 // Define the exact workload identities and JWT audience this gateway accepts.
 const trustDomain = "secure-bedrock-evaluation-gateway.local";
@@ -65,6 +70,13 @@ const bedrock = new BedrockRuntimeClient({
   credentials: roleCredentials,
 });
 
+// Give S3 the temporary gateway-role credentials used by Bedrock.
+// The bucket name and object key will be supplied when saving a result.
+const s3 = new S3Client({
+  region,
+  credentials: roleCredentials,
+});
+
 // Accept only the two frozen prompt configurations.
 const promptId = process.env.PROMPT_ID ?? "support-ticket-classification-v2";
 if (
@@ -77,6 +89,12 @@ if (
 const modelId = process.env.BEDROCK_MODEL_ID;
 if (!modelId) {
   throw new Error("BEDROCK_MODEL_ID is required");
+}
+
+// Require the deployed evidence bucket before accepting ticket requests.
+const evidenceBucketName = process.env.EVIDENCE_BUCKET_NAME;
+if (!evidenceBucketName) {
+  throw new Error("EVIDENCE_BUCKET_NAME is required");
 }
 
 // Load the selected prompt from the versioned files in the image.
@@ -236,6 +254,43 @@ createServer(async (request, response) => {
       ) {
         throw new Error("invalid_summary");
       }
+
+      // Build the evidence from validated fields and invocation metrics.
+      // Do not store the raw ticket, JWT, or unvalidated model response.
+      const evidence = {
+        promptId,
+        modelId,
+        output: {
+          category: fields.category,
+          urgency: fields.urgency,
+          summary: summary.trim(),
+        },
+        latencyMs:
+          result.metrics?.latencyMs ??
+          Math.round(performance.now() - startedAt),
+        usage: {
+          inputTokens: result.usage?.inputTokens,
+          outputTokens: result.usage?.outputTokens,
+          totalTokens: result.usage?.totalTokens,
+        },
+      };
+
+      // Mark S3 persistence as the current stage for failure logging.
+      phase = "persist";
+      // Wait for the evidence upload before returning success to the client.
+      await s3.send(
+        new PutObjectCommand({
+          // Write to the bucket supplied by the deployed gateway configuration.
+          Bucket: evidenceBucketName,
+
+          // Give each result a unique key under the IAM-authorized prefix.
+          Key: `artifacts/${randomUUID()}.json`,
+
+          // Serialize the selected evidence fields as a JSON object.
+          Body: JSON.stringify(evidence),
+          ContentType: "application/json",
+        })
+      );
 
       // Return the synthetic case result and invocation metrics, not the ticket.
       response.writeHead(200, { "content-type": "application/json" }).end(
