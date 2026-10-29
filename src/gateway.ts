@@ -65,20 +65,24 @@ const bedrock = new BedrockRuntimeClient({
   credentials: roleCredentials,
 });
 
-// Keep the prompt version identifiable in the first invocation record.
-const promptId = "support-ticket-classification-v2";
-const modelId = process.env.BEDROCK_MODEL_ID;
+// Accept only the two frozen prompt configurations.
+const promptId = process.env.PROMPT_ID ?? "support-ticket-classification-v2";
+if (
+  promptId !== "support-ticket-classification-v1" &&
+  promptId !== "support-ticket-classification-v2"
+) {
+  throw new Error(`Unsupported PROMPT_ID: ${promptId}`);
+}
 
+const modelId = process.env.BEDROCK_MODEL_ID;
 if (!modelId) {
   throw new Error("BEDROCK_MODEL_ID is required");
 }
 
+// Load the selected prompt from the versioned files in the image.
 const systemPrompt = (
   await readFile(
-    new URL(
-      "../eval/prompts/support-ticket-classification-v2.txt",
-      import.meta.url
-    ),
+    new URL(`../eval/prompts/${promptId}.txt`, import.meta.url),
     "utf8"
   )
 ).trim();

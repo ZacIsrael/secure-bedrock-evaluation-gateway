@@ -81,6 +81,8 @@ services:
       AWS_SHARED_CREDENTIALS_FILE: /run/aws/credentials
       GATEWAY_ROLE_ARN: ${GATEWAY_ROLE_ARN:?Export GATEWAY_ROLE_ARN before starting Compose}
       BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:?Export BEDROCK_MODEL_ID before starting Compose}
+      # Use v2 by default; allow an explicit v1 run for comparison.
+      PROMPT_ID: ${PROMPT_ID:-support-ticket-classification-v2}
     depends_on:
       spire-agent:
         condition: service_healthy
