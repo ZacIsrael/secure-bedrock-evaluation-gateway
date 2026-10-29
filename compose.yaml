@@ -113,6 +113,10 @@ services:
     volumes:
       - spire-agent-socket:/run/spire/agent/public
       - ./eval/cases/development.jsonl:/app/eval/cases/development.jsonl:ro
+      # Give the evaluator read-only access to the frozen test cases.
+      - ./eval/cases/frozen-evaluation.jsonl:/app/eval/cases/frozen-evaluation.jsonl:ro
+      # Keep detailed evaluation results local for review.
+      - ./docs/verification/raw:/app/eval/results
 
 volumes:
   # Keep SPIRE server state in a Docker-managed volume.
