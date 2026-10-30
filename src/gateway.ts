@@ -16,6 +16,15 @@ import {
   ConverseCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 
+// Send operational events to the log stream created by Terraform.
+import {
+  CloudWatchLogsClient,
+  PutLogEventsCommand,
+} from "@aws-sdk/client-cloudwatch-logs";
+
+// Build a bounded event without sending ticket or model text to CloudWatch.
+import { classificationSucceededEvent } from "./operational-event.js";
+
 // Read the frozen prompt text when the gateway starts.
 import { readFile } from "node:fs/promises";
 // Use the S3 SDK to write validated evaluation results to the evidence bucket.
@@ -77,6 +86,12 @@ const s3 = new S3Client({
   credentials: roleCredentials,
 });
 
+// Reuse the assumed gateway role for CloudWatch Logs writes.
+const cloudWatchLogs = new CloudWatchLogsClient({
+  region,
+  credentials: roleCredentials,
+});
+
 // Accept only the two frozen prompt configurations.
 const promptId = process.env.PROMPT_ID ?? "support-ticket-classification-v2";
 if (
@@ -95,6 +110,12 @@ if (!modelId) {
 const evidenceBucketName = process.env.EVIDENCE_BUCKET_NAME;
 if (!evidenceBucketName) {
   throw new Error("EVIDENCE_BUCKET_NAME is required");
+}
+
+// Require the deployed log group; its stream is named gateway in logs.tf.
+const logGroupName = process.env.CLOUDWATCH_LOG_GROUP_NAME;
+if (!logGroupName) {
+  throw new Error("CLOUDWATCH_LOG_GROUP_NAME is required");
 }
 
 // Load the selected prompt from the versioned files in the image.
@@ -277,20 +298,46 @@ createServer(async (request, response) => {
 
       // Mark S3 persistence as the current stage for failure logging.
       phase = "persist";
-      // Wait for the evidence upload before returning success to the client.
+
+      // Reuse this key in the CloudWatch event to identify the saved object.
+      const evidenceKey = `artifacts/${randomUUID()}.json`;
+
+      // Wait for S3 to confirm the evidence write before proceeding.
       await s3.send(
         new PutObjectCommand({
-          // Write to the bucket supplied by the deployed gateway configuration.
           Bucket: evidenceBucketName,
-
-          // Give each result a unique key under the IAM-authorized prefix.
-          Key: `artifacts/${randomUUID()}.json`,
-
-          // Serialize the selected evidence fields as a JSON object.
+          Key: evidenceKey,
           Body: JSON.stringify(evidence),
           ContentType: "application/json",
         })
       );
+
+      // Record completion without copying the ticket or classification summary.
+      // Wait for CloudWatch before reporting success to the client.
+      phase = "log";
+      const logResult = await cloudWatchLogs.send(
+        new PutLogEventsCommand({
+          logGroupName,
+          logStreamName: "gateway",
+          logEvents: [
+            {
+              timestamp: Date.now(),
+              message: classificationSucceededEvent({
+                promptId,
+                modelId,
+                evidenceKey,
+                latencyMs: evidence.latencyMs,
+                usage: evidence.usage,
+              }),
+            },
+          ],
+        })
+      );
+
+      // A successful API call can still report that an event was rejected.
+      if (logResult.rejectedLogEventsInfo) {
+        throw new Error("CloudWatch rejected the gateway event");
+      }
 
       // Return the synthetic case result and invocation metrics, not the ticket.
       response.writeHead(200, { "content-type": "application/json" }).end(
@@ -315,7 +362,7 @@ createServer(async (request, response) => {
       );
     } catch (error) {
       // Record the failed stage without logging ticket or model text.
-      console.error("Bedrock classification failed:", {
+      console.error("Gateway classification or evidence delivery failed:", {
         phase,
         name: error instanceof Error ? error.name : "UnknownError",
         httpStatus:

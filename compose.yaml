@@ -91,6 +91,8 @@ services:
       PROMPT_ID: ${PROMPT_ID:-support-ticket-classification-v2}
       # Name the deployed bucket where the gateway will save evaluation evidence.
       EVIDENCE_BUCKET_NAME: ${EVIDENCE_BUCKET_NAME:?Export EVIDENCE_BUCKET_NAME before starting Compose}
+      # Name the Terraform-managed group for gateway operational events.
+      CLOUDWATCH_LOG_GROUP_NAME: ${CLOUDWATCH_LOG_GROUP_NAME:?Export CLOUDWATCH_LOG_GROUP_NAME before starting Compose}
     depends_on:
       spire-agent:
         condition: service_healthy

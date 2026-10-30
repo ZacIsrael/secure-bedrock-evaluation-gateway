@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\""
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
+    "test": "npm run build && node --test dist/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -26,6 +27,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "3.1157.0",
+    "@aws-sdk/client-cloudwatch-logs": "3.1157.0",
     "@aws-sdk/client-s3": "3.1157.0",
     "@aws-sdk/credential-providers": "3.1157.0",
     "@jeengbe/spiffe": "2.1.0"
