@@ -1,0 +1,17 @@
+{
+  "selectedPromptId": "support-ticket-classification-v2",
+  "modelId": "amazon.nova-micro-v1:0",
+  "datasetSha256": "d006146f5a0db740a2b33aeb6d8b969ec7c8fd493831844900572b19fb1ee0de",
+  "promptSha256": "284a160f7226fb6a6aaec5ed5ce96a5eb9e8ec1bf0e4ca2ea1896a7705d84a6e",
+  "thresholds": {
+    "schemaValid": 18,
+    "correctCategories": 17,
+    "factualSummaries": 18
+  },
+  "reviewedResults": {
+    "schemaValid": 20,
+    "correctCategories": 18,
+    "factualSummaries": 20
+  },
+  "evidence": "docs/verification/sanitized/prompt-comparison.md"
+}
