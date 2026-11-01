@@ -96,9 +96,9 @@ services:
     depends_on:
       spire-agent:
         condition: service_healthy
-    # A 401 means the server is listening and correctly requires a JWT.
+    # Check that the HTTPS listener is ready; the client proves the mTLS handshake.
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/authorize',{method:'POST'}).then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "const s=require('node:net').connect(8080,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));s.setTimeout(2000,()=>process.exit(1))"]
       interval: 2s
       timeout: 3s
       retries: 30

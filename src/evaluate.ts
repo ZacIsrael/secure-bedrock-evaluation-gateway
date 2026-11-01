@@ -4,6 +4,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { SpiffeClient } from "@jeengbe/spiffe";
+import { gatewayPost } from "./gateway-request.js";
 
 // Define the ticket and private expected answers stored in each frozen case.
 type EvaluationCase = {
@@ -67,10 +68,7 @@ if (ownId !== "spiffe://secure-bedrock-evaluation-gateway.local/client") {
 // Confirm this client can reach and authenticate with the gateway.
 // Stop before the evaluation if SPIRE identity or authorization is broken.
 const authToken = await spiffe.getJwt("bedrock-evaluation-gateway");
-const authCheck = await fetch("http://gateway:8080/authorize", {
-  method: "POST",
-  headers: { authorization: `Bearer ${authToken}` },
-});
+const authCheck = await gatewayPost(spiffe, "/authorize", authToken);
 
 if (authCheck.status !== 200) {
   throw new Error(
@@ -90,23 +88,16 @@ for (const item of cases) {
   const startedAt = performance.now();
 
   try {
-    // Send only the case ID and ticket; expected answers stay in this process.
-    // Abort a request that takes longer than 60 seconds.
-    const response = await fetch("http://gateway:8080/tickets", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ id: item.id, ticket: item.ticket }),
-      signal: AbortSignal.timeout(60_000),
+    const response = await gatewayPost(spiffe, "/tickets", token, {
+      id: item.id,
+      ticket: item.ticket,
     });
 
     const elapsedMs = Math.round(performance.now() - startedAt);
 
     // Record an unsuccessful gateway response without treating it as a score.
     // The gateway does not return a classification for these responses.
-    if (!response.ok) {
+    if (response.status !== 200) {
       results.push({
         id: item.id,
         httpStatus: response.status,
@@ -121,8 +112,7 @@ for (const item of cases) {
       continue;
     }
 
-    // Read the classification, model ID, latency, and token usage.
-    const result = (await response.json()) as GatewayResult;
+    const result = JSON.parse(response.body) as GatewayResult;
 
     // Stop if this response belongs to another case or prompt version.
     // Mixing v1 and v2 results would invalidate the comparison.

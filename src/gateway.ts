@@ -1,5 +1,9 @@
-// Create the HTTP server that receives authorized gateway requests.
-import { createServer } from "node:http";
+// Serve requests over TLS with the gateway certificate issued by SPIRE.
+import { createServer } from "node:https";
+import type { TLSSocket } from "node:tls";
+
+// Receive the gateway's X.509-SVID and future certificate updates.
+import { watchX509TlsMaterial } from "./spiffe-x509.js";
 
 // Use the SPIRE Workload API to identify this process and validate client JWTs.
 import { SpiffeClient } from "@jeengbe/spiffe";
@@ -126,223 +130,189 @@ const systemPrompt = (
   )
 ).trim();
 
-createServer(async (request, response) => {
-  // Accept only the two POST endpoints implemented by this gateway.
-  if (
-    request.method !== "POST" ||
-    (request.url !== "/authorize" && request.url !== "/tickets")
-  ) {
-    response.writeHead(404).end();
-    return;
-  }
+// Obtain the gateway's certificate and trust bundle before accepting connections.
+const tlsUpdates = watchX509TlsMaterial(spiffe, gatewayId);
+const initialTls = await tlsUpdates.next();
 
-  // Read the caller's JWT-SVID from the Authorization header.
-  const authorization = request.headers.authorization;
-  const token = authorization?.startsWith("Bearer ")
-    ? authorization.slice("Bearer ".length)
-    : undefined;
+if (initialTls.done) {
+  throw new Error("SPIRE did not provide gateway TLS credentials");
+}
 
-  // Reject requests that provide no bearer token.
-  if (!token) {
-    response.writeHead(401).end("Missing bearer token\n");
-    return;
-  }
+// Require a client certificate signed by the trusted SPIRE authority.
+const server = createServer(
+  {
+    ...initialTls.value,
+    requestCert: true,
+    rejectUnauthorized: true,
+  },
+  async (request, response) => {
+    // TLS checks the certificate chain; this checks the client's SPIFFE ID.
+    const peerSocket = request.socket as TLSSocket;
+    const peer = peerSocket.getPeerCertificate();
 
-  try {
-    // Ask SPIRE to validate the JWT for this gateway's audience.
-    const identity = await spiffe.validateJwt(audience, token);
-
-    // A token without a validated workload identity cannot proceed.
-    if (!identity) {
-      response.writeHead(401).end("Invalid identity\n");
+    if (
+      !peerSocket.authorized ||
+      peer.subjectaltname !== `URI:${allowedClientId}`
+    ) {
+      response
+        .writeHead(403)
+        .end("Client certificate identity not authorized\n");
+      return;
+    }
+    // Accept only the two POST endpoints implemented by this gateway.
+    if (
+      request.method !== "POST" ||
+      (request.url !== "/authorize" && request.url !== "/tickets")
+    ) {
+      response.writeHead(404).end();
       return;
     }
 
-    // Permit only the registered client workload to call this gateway.
-    if (identity.spiffeId !== allowedClientId) {
-      response.writeHead(403).end("Identity not authorized\n");
+    // Read the caller's JWT-SVID from the Authorization header.
+    const authorization = request.headers.authorization;
+    const token = authorization?.startsWith("Bearer ")
+      ? authorization.slice("Bearer ".length)
+      : undefined;
+
+    // Reject requests that provide no bearer token.
+    if (!token) {
+      response.writeHead(401).end("Missing bearer token\n");
       return;
     }
 
-    // Let the client check authorization without submitting a ticket.
-    if (request.url === "/authorize") {
-      response.writeHead(200).end("Client authorized\n");
-      return;
-    }
+    try {
+      // Ask SPIRE to validate the JWT for this gateway's audience.
+      const identity = await spiffe.validateJwt(audience, token);
 
-    // Read ticket data after authorization and cap the request at 4 KiB.
-    let body = "";
-    for await (const chunk of request) {
-      body += chunk.toString();
-      if (Buffer.byteLength(body, "utf8") > 4096) {
-        response.writeHead(413).end("Ticket request too large\n");
+      // A token without a validated workload identity cannot proceed.
+      if (!identity) {
+        response.writeHead(401).end("Invalid identity\n");
         return;
       }
-    }
 
-    // Return a client error if the request body is not valid JSON.
-    let input: unknown;
-    try {
-      input = JSON.parse(body);
-    } catch {
-      response.writeHead(400).end("Invalid JSON\n");
-      return;
-    }
+      // Permit only the registered client workload to call this gateway.
+      if (identity.spiffeId !== allowedClientId) {
+        response.writeHead(403).end("Identity not authorized\n");
+        return;
+      }
 
-    // Require a bounded case ID and a nonempty ticket string.
-    if (
-      typeof input !== "object" ||
-      input === null ||
-      !("id" in input) ||
-      typeof input.id !== "string" ||
-      input.id.length === 0 ||
-      input.id.length > 64 ||
-      !("ticket" in input) ||
-      typeof input.ticket !== "string" ||
-      input.ticket.trim().length === 0
-    ) {
-      response.writeHead(400).end("Expected an id and ticket string\n");
-      return;
-    }
+      // Let the client check authorization without submitting a ticket.
+      if (request.url === "/authorize") {
+        response.writeHead(200).end("Client authorized\n");
+        return;
+      }
 
-    // Send only the ticket text to the model; expected evaluation answers stay private.
-    const startedAt = performance.now();
+      // Read ticket data after authorization and cap the request at 4 KiB.
+      let body = "";
+      for await (const chunk of request) {
+        body += chunk.toString();
+        if (Buffer.byteLength(body, "utf8") > 4096) {
+          response.writeHead(413).end("Ticket request too large\n");
+          return;
+        }
+      }
 
-    let phase = "invoke";
-    try {
-      const result = await bedrock.send(
-        new ConverseCommand({
-          modelId,
-          system: [{ text: systemPrompt }],
-          messages: [
-            {
-              role: "user",
-              content: [{ text: `Support ticket:\n${input.ticket}` }],
+      // Return a client error if the request body is not valid JSON.
+      let input: unknown;
+      try {
+        input = JSON.parse(body);
+      } catch {
+        response.writeHead(400).end("Invalid JSON\n");
+        return;
+      }
+
+      // Require a bounded case ID and a nonempty ticket string.
+      if (
+        typeof input !== "object" ||
+        input === null ||
+        !("id" in input) ||
+        typeof input.id !== "string" ||
+        input.id.length === 0 ||
+        input.id.length > 64 ||
+        !("ticket" in input) ||
+        typeof input.ticket !== "string" ||
+        input.ticket.trim().length === 0
+      ) {
+        response.writeHead(400).end("Expected an id and ticket string\n");
+        return;
+      }
+
+      // Send only the ticket text to the model; expected evaluation answers stay private.
+      const startedAt = performance.now();
+
+      let phase = "invoke";
+      try {
+        const result = await bedrock.send(
+          new ConverseCommand({
+            modelId,
+            system: [{ text: systemPrompt }],
+            messages: [
+              {
+                role: "user",
+                content: [{ text: `Support ticket:\n${input.ticket}` }],
+              },
+            ],
+            inferenceConfig: {
+              maxTokens: 160,
+              temperature: 0,
             },
-          ],
-          inferenceConfig: {
-            maxTokens: 160,
-            temperature: 0,
-          },
-        })
-      );
+          })
+        );
 
-      phase = "extract";
+        phase = "extract";
 
-      // Extract model text without returning the request or AWS credentials.
-      const modelText = result.output?.message?.content
-        ?.map((block) => block.text ?? "")
-        .join("")
-        .trim();
+        // Extract model text without returning the request or AWS credentials.
+        const modelText = result.output?.message?.content
+          ?.map((block) => block.text ?? "")
+          .join("")
+          .trim();
 
-      if (!modelText) {
-        throw new Error("Bedrock returned no text");
-      }
+        if (!modelText) {
+          throw new Error("Bedrock returned no text");
+        }
 
-      phase = "parse";
+        phase = "parse";
 
-      // Validate the model's JSON before treating it as a classification.
-      const output: unknown = JSON.parse(modelText);
+        // Validate the model's JSON before treating it as a classification.
+        const output: unknown = JSON.parse(modelText);
 
-      phase = "validate";
-      if (typeof output !== "object" || output === null) {
-        throw new Error("Model output is not an object");
-      }
+        phase = "validate";
+        if (typeof output !== "object" || output === null) {
+          throw new Error("Model output is not an object");
+        }
 
-      const fields = output as Record<string, unknown>;
-      const keys = Object.keys(fields).sort();
-      const summary = fields.summary;
+        const fields = output as Record<string, unknown>;
+        const keys = Object.keys(fields).sort();
+        const summary = fields.summary;
 
-      if (keys.join(",") !== "category,summary,urgency") {
-        throw new Error("unexpected_fields");
-      }
-      if (
-        typeof fields.category !== "string" ||
-        !["billing", "technical", "account", "other"].includes(fields.category)
-      ) {
-        throw new Error("invalid_category");
-      }
-      if (
-        typeof fields.urgency !== "string" ||
-        !["normal", "high"].includes(fields.urgency)
-      ) {
-        throw new Error("invalid_urgency");
-      }
-      if (
-        typeof summary !== "string" ||
-        !summary.trim() ||
-        summary.trim().split(/\s+/).length > 40
-      ) {
-        throw new Error("invalid_summary");
-      }
+        if (keys.join(",") !== "category,summary,urgency") {
+          throw new Error("unexpected_fields");
+        }
+        if (
+          typeof fields.category !== "string" ||
+          !["billing", "technical", "account", "other"].includes(
+            fields.category
+          )
+        ) {
+          throw new Error("invalid_category");
+        }
+        if (
+          typeof fields.urgency !== "string" ||
+          !["normal", "high"].includes(fields.urgency)
+        ) {
+          throw new Error("invalid_urgency");
+        }
+        if (
+          typeof summary !== "string" ||
+          !summary.trim() ||
+          summary.trim().split(/\s+/).length > 40
+        ) {
+          throw new Error("invalid_summary");
+        }
 
-      // Build the evidence from validated fields and invocation metrics.
-      // Do not store the raw ticket, JWT, or unvalidated model response.
-      const evidence = {
-        promptId,
-        modelId,
-        output: {
-          category: fields.category,
-          urgency: fields.urgency,
-          summary: summary.trim(),
-        },
-        latencyMs:
-          result.metrics?.latencyMs ??
-          Math.round(performance.now() - startedAt),
-        usage: {
-          inputTokens: result.usage?.inputTokens,
-          outputTokens: result.usage?.outputTokens,
-          totalTokens: result.usage?.totalTokens,
-        },
-      };
-
-      // Mark S3 persistence as the current stage for failure logging.
-      phase = "persist";
-
-      // Reuse this key in the CloudWatch event to identify the saved object.
-      const evidenceKey = `artifacts/${randomUUID()}.json`;
-
-      // Wait for S3 to confirm the evidence write before proceeding.
-      await s3.send(
-        new PutObjectCommand({
-          Bucket: evidenceBucketName,
-          Key: evidenceKey,
-          Body: JSON.stringify(evidence),
-          ContentType: "application/json",
-        })
-      );
-
-      // Record completion without copying the ticket or classification summary.
-      // Wait for CloudWatch before reporting success to the client.
-      phase = "log";
-      const logResult = await cloudWatchLogs.send(
-        new PutLogEventsCommand({
-          logGroupName,
-          logStreamName: "gateway",
-          logEvents: [
-            {
-              timestamp: Date.now(),
-              message: classificationSucceededEvent({
-                promptId,
-                modelId,
-                evidenceKey,
-                latencyMs: evidence.latencyMs,
-                usage: evidence.usage,
-              }),
-            },
-          ],
-        })
-      );
-
-      // A successful API call can still report that an event was rejected.
-      if (logResult.rejectedLogEventsInfo) {
-        throw new Error("CloudWatch rejected the gateway event");
-      }
-
-      // Return the synthetic case result and invocation metrics, not the ticket.
-      response.writeHead(200, { "content-type": "application/json" }).end(
-        JSON.stringify({
-          id: input.id,
+        // Build the evidence from validated fields and invocation metrics.
+        // Do not store the raw ticket, JWT, or unvalidated model response.
+        const evidence = {
           promptId,
           modelId,
           output: {
@@ -358,31 +328,109 @@ createServer(async (request, response) => {
             outputTokens: result.usage?.outputTokens,
             totalTokens: result.usage?.totalTokens,
           },
-        })
-      );
+        };
+
+        // Mark S3 persistence as the current stage for failure logging.
+        phase = "persist";
+
+        // Reuse this key in the CloudWatch event to identify the saved object.
+        const evidenceKey = `artifacts/${randomUUID()}.json`;
+
+        // Wait for S3 to confirm the evidence write before proceeding.
+        await s3.send(
+          new PutObjectCommand({
+            Bucket: evidenceBucketName,
+            Key: evidenceKey,
+            Body: JSON.stringify(evidence),
+            ContentType: "application/json",
+          })
+        );
+
+        // Record completion without copying the ticket or classification summary.
+        // Wait for CloudWatch before reporting success to the client.
+        phase = "log";
+        const logResult = await cloudWatchLogs.send(
+          new PutLogEventsCommand({
+            logGroupName,
+            logStreamName: "gateway",
+            logEvents: [
+              {
+                timestamp: Date.now(),
+                message: classificationSucceededEvent({
+                  promptId,
+                  modelId,
+                  evidenceKey,
+                  latencyMs: evidence.latencyMs,
+                  usage: evidence.usage,
+                }),
+              },
+            ],
+          })
+        );
+
+        // A successful API call can still report that an event was rejected.
+        if (logResult.rejectedLogEventsInfo) {
+          throw new Error("CloudWatch rejected the gateway event");
+        }
+
+        // Return the synthetic case result and invocation metrics, not the ticket.
+        response.writeHead(200, { "content-type": "application/json" }).end(
+          JSON.stringify({
+            id: input.id,
+            promptId,
+            modelId,
+            output: {
+              category: fields.category,
+              urgency: fields.urgency,
+              summary: summary.trim(),
+            },
+            latencyMs:
+              result.metrics?.latencyMs ??
+              Math.round(performance.now() - startedAt),
+            usage: {
+              inputTokens: result.usage?.inputTokens,
+              outputTokens: result.usage?.outputTokens,
+              totalTokens: result.usage?.totalTokens,
+            },
+          })
+        );
+      } catch (error) {
+        // Record the failed stage without logging ticket or model text.
+        console.error("Gateway classification or evidence delivery failed:", {
+          phase,
+          name: error instanceof Error ? error.name : "UnknownError",
+          httpStatus:
+            typeof error === "object" && error !== null && "$metadata" in error
+              ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata
+                  ?.httpStatusCode
+              : undefined,
+          reason:
+            phase === "validate" && error instanceof Error
+              ? error.message
+              : undefined,
+        });
+        response.writeHead(502).end("Classification unavailable\n");
+      }
     } catch (error) {
-      // Record the failed stage without logging ticket or model text.
-      console.error("Gateway classification or evidence delivery failed:", {
-        phase,
-        name: error instanceof Error ? error.name : "UnknownError",
-        httpStatus:
-          typeof error === "object" && error !== null && "$metadata" in error
-            ? (error as { $metadata?: { httpStatusCode?: number } }).$metadata
-                ?.httpStatusCode
-            : undefined,
-        reason:
-          phase === "validate" && error instanceof Error
-            ? error.message
-            : undefined,
-      });
-      response.writeHead(502).end("Classification unavailable\n");
+      // Keep validation or request-handling failures from succeeding silently.
+      console.error("Gateway request failed:", error);
+      response.writeHead(503).end("Gateway unavailable\n");
     }
-  } catch (error) {
-    // Keep validation or request-handling failures from succeeding silently.
-    console.error("Gateway request failed:", error);
-    response.writeHead(503).end("Gateway unavailable\n");
   }
-}).listen(8080, "0.0.0.0", () => {
-  // Log the gateway identity once the HTTP server is accepting requests.
-  console.log(`Gateway ready as ${gatewayId}`);
+);
+
+// Apply replacement certificates to new TLS connections as SPIRE rotates them.
+void (async () => {
+  for await (const material of tlsUpdates) {
+    server.setSecureContext(material);
+  }
+
+  throw new Error("SPIRE closed the gateway X.509 update stream");
+})().catch((error: unknown) => {
+  console.error("Gateway TLS identity updates stopped:", error);
+  process.exit(1);
+});
+
+server.listen(8080, "0.0.0.0", () => {
+  console.log(`Gateway HTTPS ready as ${gatewayId}`);
 });
