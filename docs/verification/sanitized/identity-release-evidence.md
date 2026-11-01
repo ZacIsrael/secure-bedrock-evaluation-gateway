@@ -12,7 +12,7 @@ Observed in the local development stack on November 1, 2026. This record omits t
 - Unmatched selectors: a separately labeled container received no SVID; SPIRE agent logs reported `No identity issued` and `registered=false`. The client probe timed out, so the agent log is the direct issuance evidence rather than a clean client exception.
 - Expired JWT: after waiting beyond expiry, the previously issued JWT received HTTP 401 (`Expired identity`). The first expiry test returned HTTP 200 near expiry; a strict gateway expiry guard was added and retested successfully.
 - X.509-SVID renewal: an isolated 60-second-TTL probe observed serial `9EA103A0BFCD84479441FAC1C93CEFB5` expiring November 1 at 18:09:13 GMT and replacement serial `6B9A7D2C244A9E8EDDFC6D243EEE491` expiring at 18:09:38 GMT. This proves SPIRE renewal and the TypeScript watch, not independently a live gateway handshake across rotation.
-- Agent outage/recovery: a fresh-client issuance failure during the agent outage has not been supplied for review. A first recovery attempt hit `ECONNREFUSED` before gateway readiness. A subsequent manual restart waited for gateway health and returned HTTP 200 authorization in 14 seconds from restart initiation; that is not total outage duration.
+- Agent outage/recovery: with the SPIRE agent stopped, a fresh client attempting to obtain a gateway-audience JWT-SVID received `ConnectError`; the probe exited successfully. Recreating the gateway with `docker compose up -d --wait --force-recreate gateway` brought SPIRE server, agent, and gateway to healthy status, and a new synthetic ticket returned HTTP 200. An earlier recovery attempt hit `ECONNREFUSED` before gateway readiness; a subsequent manual restart returned HTTP 200 authorization in 14 seconds from restart initiation. These timings do not measure total outage duration.
 
 ## Release and operational recovery
 
@@ -23,4 +23,4 @@ Observed in the local development stack on November 1, 2026. This record omits t
 
 ## Explicit gaps
 
-The isolated renewal probe and manual agent recovery do not prove a live gateway handshake across rotation or a bounded fresh-client issuance failure during the agent outage. Removal of the temporary renewal registration has not been independently confirmed here. The Friday presentation was not delivered. Keep these as explicit gaps rather than marking them passed.
+The isolated renewal probe does not independently prove a live gateway handshake across rotation. A subsequent SPIRE `entry show` check returned no `renewal-probe` match; the filtered check did not retain the full entry listing. The Friday presentation was not delivered. Keep these as explicit limits rather than marking them passed.
