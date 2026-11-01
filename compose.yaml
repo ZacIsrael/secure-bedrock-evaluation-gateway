@@ -74,6 +74,9 @@ services:
         NODE_IMAGE: ${NODE_IMAGE:?Set NODE_IMAGE in images.lock.env}
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
     command: ["node", "dist/gateway.js"]
+    # This runtime label distinguishes the gateway container from its image.
+    labels:
+      org.example.workload: evaluation-gateway
     environment:
       # Connect the gateway to SPIRE's Workload API socket for identity checks.
       SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
@@ -115,6 +118,9 @@ services:
         NODE_IMAGE: ${NODE_IMAGE:?Set NODE_IMAGE in images.lock.env}
     platform: ${CONTAINER_PLATFORM:?Set CONTAINER_PLATFORM in images.lock.env}
     command: ["node", "dist/client.js"]
+    # This runtime label distinguishes client containers from their image.
+    labels:
+      org.example.workload: evaluation-client
     environment:
       SPIFFE_ENDPOINT_SOCKET: unix:///run/spire/agent/public/api.sock
     depends_on:
