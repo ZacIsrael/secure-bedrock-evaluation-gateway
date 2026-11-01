@@ -190,6 +190,19 @@ const server = createServer(
         return;
       }
 
+      // SPIRE validates the signature and audience. Enforce this gateway's
+      // exact expiry boundary even if the validator allows clock skew.
+      const expiresAt = identity.claims.exp;
+
+      if (
+        typeof expiresAt !== "number" ||
+        !Number.isSafeInteger(expiresAt) ||
+        Date.now() >= expiresAt * 1000
+      ) {
+        response.writeHead(401).end("Expired identity\n");
+        return;
+      }
+
       // Permit only the registered client workload to call this gateway.
       if (identity.spiffeId !== allowedClientId) {
         response.writeHead(403).end("Identity not authorized\n");
